@@ -6,6 +6,13 @@ import numpy as np
 
 from misc import pyutils
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == '__main__':
 
@@ -69,8 +76,8 @@ if __name__ == '__main__':
 
     # Output Path
     parser.add_argument("--log_name", default="sample_train_eval", type=str)
-    parser.add_argument("--cam_weights_name", default="sess/res50_cam_ood.pth", type=str)
-    parser.add_argument("--irn_weights_name", default="sess/res50_irn_ood.pth", type=str)
+    parser.add_argument("--cam_weights_name", default="sess/res50_cam.pth", type=str)
+    parser.add_argument("--irn_weights_name", default="sess/res50_irn.pth", type=str)
 
     parser.add_argument("--cam_out_dir", default="result/cam_ood", type=str)
     #
@@ -79,20 +86,21 @@ if __name__ == '__main__':
     parser.add_argument("--ins_seg_out_dir", default="result/ins_seg_ood", type=str)
 
     # Step
-    parser.add_argument("--train_cam_pass", default=True, type=bool)
-    parser.add_argument("--make_cam_pass", default=True, type=bool)
-    parser.add_argument("--eval_cam_pass", default=True, type=bool)
-    parser.add_argument("--cam_to_ir_label_pass", default=False, type=bool)
-    parser.add_argument("--train_irn_pass", default=False, type=bool)
-    parser.add_argument("--make_ins_seg_pass", default=False, type=bool)
-    parser.add_argument("--eval_ins_seg_pass", default=False, type=bool)
-    parser.add_argument("--make_sem_seg_pass", default=False, type=bool)
-    parser.add_argument("--eval_sem_seg_pass", default=False, type=bool)
+    parser.add_argument("--train_cam_pass", default=False, type=str2bool)
+    parser.add_argument("--make_cam_pass", default=True, type=str2bool)
+    parser.add_argument("--eval_cam_pass", default=True, type=str2bool)
+    parser.add_argument("--cam_to_ir_label_pass", default=False, type=str2bool)
+    parser.add_argument("--train_irn_pass", default=False, type=str2bool)
+    parser.add_argument("--make_ins_seg_pass", default=False, type=str2bool)
+    parser.add_argument("--eval_ins_seg_pass", default=False, type=str2bool)
+    parser.add_argument("--make_sem_seg_pass", default=False, type=str2bool)
+    parser.add_argument("--eval_sem_seg_pass", default=False, type=str2bool)
 
     args = parser.parse_args()
 
     os.makedirs("sess", exist_ok=True)
     os.makedirs(args.cam_out_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.cam_out_dir, "scoremap"), exist_ok=True)
     os.makedirs(args.ir_label_out_dir, exist_ok=True)
     os.makedirs(args.sem_seg_out_dir, exist_ok=True)
     os.makedirs(args.ins_seg_out_dir, exist_ok=True)
@@ -101,9 +109,10 @@ if __name__ == '__main__':
     print(vars(args))
 
     if args.train_cam_pass is True:
-        import step.train_cam_clustering
+        # import step.train_cam_clustering
+        import step.train_cam
         timer = pyutils.Timer('step.train_cam:')
-        step.train_cam_clustering.run(args)
+        step.train_cam.run(args)
 
 
     if args.make_cam_pass is True:

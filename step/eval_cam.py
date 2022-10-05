@@ -4,7 +4,6 @@ import numpy as np
 import os
 from chainercv.datasets import VOCSemanticSegmentationDataset
 from chainercv.evaluations import calc_semantic_segmentation_confusion
-import torch
 
 n_class = 21
 def total_confusion_to_class_confusion(data):

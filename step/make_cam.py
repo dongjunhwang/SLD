@@ -10,18 +10,65 @@ from torch.backends import cudnn
 import numpy as np
 import importlib
 import os
-from misc import torchutils
+import cv2
+from os.path import join as ospj
+from os.path import dirname as ospd
 
 import voc12.dataloader
 from misc import torchutils, imutils
 
 cudnn.enabled = True
 
-def _work(process_id, model, dataset, args):
+def t2n(t):
+    return t.detach().cpu().numpy().astype(np.float)
+
+def make_cam(input_img, scoremap):
+    heatmap_resize = cv2.resize(scoremap, (input_img.shape[1], input_img.shape[0]), cv2.INTER_NEAREST)
+    heatmap = np.uint8(255 * heatmap_resize.squeeze())
+    heatmap_native = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+    heatmap = heatmap_native * 0.5 + input_img
+    heatmap = heatmap
+
+    return heatmap.squeeze(), heatmap_native.squeeze()
+
+def qualitative_grid_cam(data_root, log_folder, cam, image_id, count_qualitative_cam,
+                         grid_size, list_qualitative_cam, epoch):
+    # For Make Qualitative CAM
+    input_img = cv2.imread(ospj(data_root, image_id+".jpg"))
+    input_img = cv2.resize(input_img, (cam.shape[0], cam.shape[1]))
+    heatmap, _ = make_cam(input_img, cam)
+    heatmap = heatmap.astype(int)
+    if count_qualitative_cam < grid_size[0] * grid_size[1]:
+        ri = int(count_qualitative_cam/grid_size[0])
+        if list_qualitative_cam[ri] is None:
+            list_qualitative_cam[ri] = [heatmap]
+        else:
+            list_qualitative_cam[ri].append(heatmap)
+        count_qualitative_cam += 1
+    elif count_qualitative_cam == grid_size[0] * grid_size[1] and epoch % 2 == 0:
+        for i in range(grid_size[0]):
+            list_qualitative_cam[i] = np.hstack(list_qualitative_cam[i])
+        qualitative_cam = np.vstack(list_qualitative_cam)
+        qualitative_cam_path = ospj(log_folder, f'qualitative_cam_{epoch}.jpg')
+        if not os.path.exists(ospd(log_folder)):
+            os.makedirs(ospd(log_folder))
+        cv2.imwrite(ospj(qualitative_cam_path), qualitative_cam)
+        count_qualitative_cam += 1
+
+    return count_qualitative_cam, list_qualitative_cam
+
+def _work(process_id, model, dataset, args, epoch):
 
     databin = dataset[process_id]
     n_gpus = torch.cuda.device_count()
     data_loader = DataLoader(databin, shuffle=False, num_workers=0, pin_memory=False)
+
+    data_root = ospj(args.voc12_root, "JPEGImages")
+    count_qualitative_cam = 0
+    grid_size = (25, 25)
+    list_qualitative_cam = [None] * grid_size[0]
+    resize_img = (224, 224)
 
     with torch.no_grad(), cuda.device(process_id%n_gpus):
 
@@ -73,14 +120,28 @@ def _work(process_id, model, dataset, args):
             np.save(os.path.join(args.cam_out_dir, img_name + '.npy'),
                     {"keys": valid_cat, "cam": strided_cam.cpu(), "high_res": highres_cam.cpu().numpy()})
 
+            # Save Qualitative CAM
+            highres_cam = t2n(highres_cam)
+            for i, valid_label in enumerate(valid_cat):
+                valid_label = valid_label.item()
+                resize_cam = cv2.resize(highres_cam[i], resize_img,
+                                        interpolation=cv2.INTER_CUBIC)
+                count_qualitative_cam, list_qualitative_cam = \
+                    qualitative_grid_cam(data_root, args.cam_out_dir,
+                                                 resize_cam, img_name, count_qualitative_cam,
+                                                 grid_size, list_qualitative_cam, epoch)
+
             if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
                 print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
 
 
-def run(args):
+def run(args, state_dict=None, epoch=0):
     model = getattr(importlib.import_module(args.cam_network), 'CAM')()
-    # print(model)
-    model.load_state_dict(torch.load(args.cam_weights_name + '.pth'), strict=True)
+    if state_dict is not None:
+        cam_weights = state_dict
+    else:
+        cam_weights = torch.load(args.cam_weights_name + '.pth')
+    model.load_state_dict(cam_weights, strict=True)
     model.eval()
 
     n_gpus = torch.cuda.device_count() * 2
@@ -90,7 +151,7 @@ def run(args):
     dataset = torchutils.split_dataset(dataset, n_gpus)
 
     print('[ ', end='')
-    multiprocessing.spawn(_work, nprocs=n_gpus, args=(model, dataset, args), join=True)
+    multiprocessing.spawn(_work, nprocs=n_gpus, args=(model, dataset, args, epoch), join=True)
     print(']')
 
     torch.cuda.empty_cache()
