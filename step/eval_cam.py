@@ -6,6 +6,13 @@ from chainercv.datasets import VOCSemanticSegmentationDataset
 from chainercv.evaluations import calc_semantic_segmentation_confusion
 
 n_class = 21
+
+CLASS_NAMES = (
+    "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat",
+    "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person",
+    "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+)
+
 def total_confusion_to_class_confusion(data):
 
     confusion_c = np.zeros((n_class, 2, 2))
@@ -55,8 +62,22 @@ def run(args):
     print("threshold:", args.cam_eval_thres, 'miou:', np.nanmean(iou), "i_imgs", n_images, "precision", np.mean(np.array(precision)), "recall", np.mean(np.array(recall)))
     print("\n")
 
+    print("IoU Score Per Class")
+    for i in range(n_class):
+        cls_name = CLASS_NAMES[i]
+        iou_score = iou[i]
+        print("{}: {}".format(cls_name, iou_score))
 
-    print(iou)
-    print(precision)
-    print(recall)
+    print("\nPrecision Score Per Class")
+    for i in range(n_class):
+        cls_name = CLASS_NAMES[i]
+        precision_score = precision[i]
+        print("{}: {}".format(cls_name, precision_score))
+
+    print("\nRecall Score Per Class")
+    for i in range(n_class):
+        cls_name = CLASS_NAMES[i]
+        recall_score = recall[i]
+        print("{}: {}".format(cls_name, recall_score))
+
     return np.nanmean(iou), np.mean(np.array(precision)), np.mean(np.array(recall))

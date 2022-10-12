@@ -135,7 +135,7 @@ if __name__ == '__main__':
         print(args.cam_out_dir)
         print(final_miou)
         print(np.max(np.array(final_miou)))
-
+ #####################3
     if args.cam_to_ir_label_pass is True:
         import step.cam_to_ir_label
 

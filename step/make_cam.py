@@ -16,6 +16,7 @@ from os.path import dirname as ospd
 
 import voc12.dataloader
 from misc import torchutils, imutils
+from sklearn.metrics import f1_score
 
 cudnn.enabled = True
 
@@ -70,6 +71,8 @@ def _work(process_id, model, dataset, args, epoch):
     list_qualitative_cam = [None] * grid_size[0]
     resize_img = (224, 224)
 
+    cls_list = []
+    label_list = []
     with torch.no_grad(), cuda.device(process_id%n_gpus):
 
         model.cuda()
@@ -87,9 +90,16 @@ def _work(process_id, model, dataset, args, epoch):
             # print(len(outputs), len(outputs[0]), outputs[0][0].shape, outputs[0][1].shape)
             logits = []
             for o in outputs:
-                logits.append(torchutils.gap2d(o[1].unsqueeze(0)).squeeze(0))
+                logits.append(torchutils.gap2d(o[1].unsqueeze(0)).squeeze(0).cpu().detach())
             # logits = [torchutils.gap2d(o[1].unsqueeze(0)).squeeze(0) for o in outputs]
             # print(logits[0])
+
+            # For classification score
+            logits = torch.sigmoid(logits[0]).numpy()
+            logits = list(map(int, logits > 0.5))
+            cls_list.append(logits)
+            label_list.append(label.tolist())
+
             outputs = [o[0] for o in outputs]
 
             strided_cam = torch.sum(torch.stack(
@@ -133,6 +143,10 @@ def _work(process_id, model, dataset, args, epoch):
 
             if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
                 print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
+
+    label_list, cls_list = label_list, cls_list
+    classification_score = f1_score(label_list, cls_list, average=None)
+    print(classification_score)
 
 
 def run(args, state_dict=None, epoch=0):
