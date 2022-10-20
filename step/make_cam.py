@@ -16,7 +16,7 @@ from os.path import dirname as ospd
 
 import voc12.dataloader
 from misc import torchutils, imutils
-from sklearn.metrics import f1_score
+import sklearn
 
 cudnn.enabled = True
 
@@ -42,7 +42,7 @@ def qualitative_grid_cam(data_root, log_folder, cam, image_id, count_qualitative
     heatmap = heatmap.astype(int)
     if count_qualitative_cam < grid_size[0] * grid_size[1]:
         ri = int(count_qualitative_cam/grid_size[0])
-        if list_qualitative_cam[ri] is None:
+        if list_qualitative_cgit am[ri] is None:
             list_qualitative_cam[ri] = [heatmap]
         else:
             list_qualitative_cam[ri].append(heatmap)
@@ -52,12 +52,22 @@ def qualitative_grid_cam(data_root, log_folder, cam, image_id, count_qualitative
             list_qualitative_cam[i] = np.hstack(list_qualitative_cam[i])
         qualitative_cam = np.vstack(list_qualitative_cam)
         qualitative_cam_path = ospj(log_folder, f'qualitative_cam_{epoch}.jpg')
-        if not os.path.exists(ospd(log_folder)):
-            os.makedirs(ospd(log_folder))
+        if not os.path.exists(log_folder):
+            os.makedirs(log_folder)
         cv2.imwrite(ospj(qualitative_cam_path), qualitative_cam)
         count_qualitative_cam += 1
 
     return count_qualitative_cam, list_qualitative_cam
+
+def all_classification_metrics(y_true, y_pred):
+    print('Exact Match Ratio: {0}'.format(
+        sklearn.metrics.accuracy_score(y_true, y_pred, normalize=True, sample_weight=None)))
+    print('Hamming loss: {0}'.format(sklearn.metrics.hamming_loss(y_true, y_pred)))
+    # "samples" applies only to multilabel problems. It does not calculate a per-class measure, instead calculating the metric over the true and predicted classes
+    # for each sample in the evaluation data, and returning their (sample_weight-weighted) average.
+    print('Recall: {0}'.format(sklearn.metrics.precision_score(y_true=y_true, y_pred=y_pred, average='samples')))
+    print('Precision: {0}'.format(sklearn.metrics.recall_score(y_true=y_true, y_pred=y_pred, average='samples')))
+    print('F1 Measure: {0}'.format(sklearn.metrics.f1_score(y_true=y_true, y_pred=y_pred, average='samples')))
 
 def _work(process_id, model, dataset, args, epoch):
 
@@ -67,7 +77,7 @@ def _work(process_id, model, dataset, args, epoch):
 
     data_root = ospj(args.voc12_root, "JPEGImages")
     count_qualitative_cam = 0
-    grid_size = (25, 25)
+    grid_size = (2, 2)
     list_qualitative_cam = [None] * grid_size[0]
     resize_img = (224, 224)
 
@@ -138,16 +148,14 @@ def _work(process_id, model, dataset, args, epoch):
                                         interpolation=cv2.INTER_CUBIC)
                 count_qualitative_cam, list_qualitative_cam = \
                     qualitative_grid_cam(data_root, args.cam_out_dir,
-                                                 resize_cam, img_name, count_qualitative_cam,
-                                                 grid_size, list_qualitative_cam, epoch)
+                                         resize_cam, img_name, count_qualitative_cam,
+                                         grid_size, list_qualitative_cam, epoch)
 
             if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
                 print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
 
     label_list, cls_list = label_list, cls_list
-    classification_score = f1_score(label_list, cls_list, average=None)
-    print(classification_score)
-
+    all_classification_metrics(label_list, cls_list)
 
 def run(args, state_dict=None, epoch=0):
     model = getattr(importlib.import_module(args.cam_network), 'CAM')()

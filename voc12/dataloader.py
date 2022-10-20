@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 import os.path
 import imageio
 from misc import imutils
+from PIL import Image
 
 IMG_FOLDER_NAME = "JPEGImages"
 ANNOT_FOLDER_NAME = "Annotations"
@@ -25,7 +26,7 @@ CAT_NAME_TO_NUM = dict(zip(CAT_LIST,range(len(CAT_LIST))))
 cls_labels_dict = np.load('voc12/cls_labels.npy', allow_pickle=True).item()
 
 def decode_int_filename(int_filename):
-    s = str(int(int_filename))
+    s = str(np.uint64(int_filename))
     return s[:4] + '_' + s[4:]
 
 def load_image_label_from_xml(img_name, voc12_root):
@@ -58,7 +59,7 @@ def get_img_path(img_name, voc12_root):
 
 def load_img_name_list(dataset_path):
 
-    img_name_list = np.loadtxt(dataset_path, dtype=np.int32)
+    img_name_list = np.loadtxt(dataset_path, dtype=np.uint64)
 
     return img_name_list
 
@@ -130,7 +131,8 @@ class VOC12ImageDataset(Dataset):
         name = self.img_name_list[idx]
         name_str = decode_int_filename(name)
 
-        img = np.asarray(imageio.imread(get_img_path(name_str, self.voc12_root)))
+        img = Image.open(get_img_path(name_str, self.voc12_root)).convert("RGB")
+        img = np.array(img)
 
         if self.resize_long:
             img = imutils.random_resize_long(img, self.resize_long[0], self.resize_long[1])
