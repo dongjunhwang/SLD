@@ -40,7 +40,8 @@ def _work(process_id, model, dataset, args):
 
             edge, dp = model(pack['img'][0].cuda(non_blocking=True))
 
-            cam_dict = np.load(args.cam_out_dir + '/' + img_name + '.npy', allow_pickle=True).item()
+            cam_dict = np.load(os.path.join("train_log", args.cam_out_dir, "scoremap", img_name + '.npy'),
+                               allow_pickle=True).item()
 
             cams = np.power(cam_dict['cam'], args.np_power)
             # for cam in cams:

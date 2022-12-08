@@ -33,7 +33,7 @@ def run(args):
     n_images = 0
     for i, id in enumerate(dataset.ids):
         n_images += 1
-        cam_dict = np.load(os.path.join(args.cam_out_dir, id + '.npy'), allow_pickle=True).item()
+        cam_dict = np.load(os.path.join("train_log", args.cam_out_dir, "scoremap", id + '.npy'), allow_pickle=True).item()
         cams = cam_dict['high_res']
 
         cams = np.pad(cams, ((1, 0), (0, 0), (0, 0)), mode='constant', constant_values=args.cam_eval_thres)
@@ -57,27 +57,8 @@ def run(args):
     gtjresj = np.diag(confusion)
     denominator = gtj + resj - gtjresj
     iou = gtjresj / denominator
-    print("\n")
 
-    print("threshold:", args.cam_eval_thres, 'miou:', np.nanmean(iou), "i_imgs", n_images, "precision", np.mean(np.array(precision)), "recall", np.mean(np.array(recall)))
-    print("\n")
+    class_score = {"iou": iou, "precision": precision, "recall": recall}
+    final_score = {"iou": np.nanmean(iou), "precision": np.mean(np.array(precision)), "recall": np.mean(np.array(recall))}
 
-    print("IoU Score Per Class")
-    for i in range(n_class):
-        cls_name = CLASS_NAMES[i]
-        iou_score = iou[i]
-        print("{}: {}".format(cls_name, iou_score))
-
-    print("\nPrecision Score Per Class")
-    for i in range(n_class):
-        cls_name = CLASS_NAMES[i]
-        precision_score = precision[i]
-        print("{}: {}".format(cls_name, precision_score))
-
-    print("\nRecall Score Per Class")
-    for i in range(n_class):
-        cls_name = CLASS_NAMES[i]
-        recall_score = recall[i]
-        print("{}: {}".format(cls_name, recall_score))
-
-    return np.nanmean(iou), np.mean(np.array(precision)), np.mean(np.array(recall))
+    return final_score, class_score

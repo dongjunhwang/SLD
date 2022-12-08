@@ -58,8 +58,9 @@ def get_img_path(img_name, voc12_root):
     return os.path.join(voc12_root, IMG_FOLDER_NAME, img_name + '.jpg')
 
 def load_img_name_list(dataset_path):
-
-    img_name_list = np.loadtxt(dataset_path, dtype=np.uint64)
+    img_name_list = np.loadtxt(dataset_path, dtype=np.str)
+    str_to_num = lambda x: int(x.replace('_', ''))
+    img_name_list = np.array(list(map(str_to_num, img_name_list)))
 
     return img_name_list
 

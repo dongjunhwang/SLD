@@ -6,6 +6,14 @@ import numpy as np
 
 from misc import pyutils
 
+n_class = 21
+
+CLASS_NAMES = (
+    "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat",
+    "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person",
+    "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+)
+
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
@@ -13,6 +21,28 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def print_performance(f_best, c_best, only_iou=True):
+    for i in range(n_class):
+        cls_name = CLASS_NAMES[i]
+        iou_score = c_best["iou"][i]
+        print("{}: {}".format(cls_name, iou_score))
+
+    if not only_iou:
+        print("Final Precision: {}, Recall: {}".format(f_best["precision"], f_best["recall"]))
+
+        print("\nPrecision Score Per Class")
+
+        for i in range(n_class):
+            cls_name = CLASS_NAMES[i]
+            precision_score = c_best["precision"][i]
+            print("{}: {}".format(cls_name, precision_score))
+
+        print("\nRecall Score Per Class")
+        for i in range(n_class):
+            cls_name = CLASS_NAMES[i]
+            recall_score = c_best["recall"][i]
+            print("{}: {}".format(cls_name, recall_score))
 
 if __name__ == '__main__':
 
@@ -81,8 +111,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--cam_out_dir", default="result/cam_ood", type=str)
     #
-    parser.add_argument("--ir_label_out_dir", default="result/ir_label", type=str)
-    parser.add_argument("--sem_seg_out_dir", default="result/sem_seg_ood", type=str)
+    parser.add_argument("--ir_label_out_dir", default="ir_label", type=str)
+    parser.add_argument("--sem_seg_out_dir", default="sem_seg_ood", type=str)
     parser.add_argument("--ins_seg_out_dir", default="result/ins_seg_ood", type=str)
 
     # Step
@@ -96,46 +126,100 @@ if __name__ == '__main__':
     parser.add_argument("--make_sem_seg_pass", default=False, type=str2bool)
     parser.add_argument("--eval_sem_seg_pass", default=False, type=str2bool)
 
+    # Ours
+    parser.add_argument("--freeze_fc", default=False, type=str2bool)
+    parser.add_argument("--cross_entropy", default=False, type=str2bool)
+    parser.add_argument("--checkpoint_name", default="sess/res50_cam.pth", type=str)
+    parser.add_argument('--find_best_model', type=str2bool, nargs='?',
+                        const=True, default=True)
+    parser.add_argument("--decrease_lr", default=0.1, type=float)
+    parser.add_argument("--two_stage", default=False, type=str2bool)
+    parser.add_argument("--error_min", default=False, type=str2bool)
+    parser.add_argument("--error_lambda", default=0.001, type=float)
+    parser.add_argument("--schedule_error_lambda", default=False, type=str2bool)
+
+    # EMA (Mean-Teacher)
+    parser.add_argument("--train_ema", default=False, type=str2bool)
+    parser.add_argument("--train_single_list", default="voc12/diag_hfd.txt", type=str)
+    parser.add_argument("--train_multi_list", default="voc12/diag_hfd.txt", type=str)
+    parser.add_argument("--ema_decay", default=0.99, type=float,
+                        help='ema variable decay rate (default: 0.99)')
+    parser.add_argument("--iter", default=10000, type=int)
+    parser.add_argument("--choose_multi_to_val", default=True, type=str2bool)
+    parser.add_argument("--consistency", default=True, type=str2bool)
+    parser.add_argument("--con_lam", default=0.1, type=float)
+    parser.add_argument("--sigmoid_temperture", default=0.5, type=float)
+
+    # Qualtative CAM
+    parser.add_argument("--qual_cam", default=True, type=str2bool)
+
     args = parser.parse_args()
 
     os.makedirs("sess", exist_ok=True)
-    os.makedirs(args.cam_out_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.cam_out_dir, "scoremap"), exist_ok=True)
+
+    args.ir_label_out_dir = os.path.join("train_log", args.cam_out_dir, args.ir_label_out_dir)
+    args.sem_seg_out_dir = os.path.join("train_log", args.cam_out_dir, args.sem_seg_out_dir)
+
+    os.makedirs(os.path.join("train_log", args.cam_out_dir), exist_ok=True)
+
+    os.makedirs(os.path.join("train_log", args.cam_out_dir, "scoremap"), exist_ok=True)
+    os.makedirs(os.path.join("train_log", args.cam_out_dir, "scoremap_fuse"), exist_ok=True)
+    os.makedirs(os.path.join("train_log", args.cam_out_dir, "scoremap_native"), exist_ok=True)
+    os.makedirs(os.path.join("train_log", args.cam_out_dir, "gt_mask"), exist_ok=True)
+
     os.makedirs(args.ir_label_out_dir, exist_ok=True)
     os.makedirs(args.sem_seg_out_dir, exist_ok=True)
     os.makedirs(args.ins_seg_out_dir, exist_ok=True)
 
-    pyutils.Logger(os.path.join(args.cam_out_dir, args.log_name + '.log'))
+    pyutils.Logger(os.path.join("train_log", args.cam_out_dir, args.log_name + '.log'))
     print(vars(args))
 
-    if args.train_cam_pass is True:
-        # import step.train_cam_clustering
+    if args.train_cam_pass is True and args.train_ema:
+        args.cam_weights_name = os.path.join("train_log", args.cam_out_dir, "best")
+        import step.train_cam_ema
+        timer = pyutils.Timer('step.train_cam:')
+        step.train_cam_ema.run(args)
+
+    elif args.train_cam_pass is True:
+        args.cam_weights_name = os.path.join("train_log", args.cam_out_dir, "best")
         import step.train_cam
         timer = pyutils.Timer('step.train_cam:')
         step.train_cam.run(args)
 
+        if args.two_stage:
+            args.train_list = "voc12/train_aug_dsc.txt"
+            args.checkpoint_name = args.cam_weights_name
+            args.cam_weights_name = os.path.join("train_log", args.cam_out_dir, "best_stage_two")
+            args.cam_learning_rate *= args.decrease_lr
+            step.train_cam.run(args, is_two_stage=True)
 
     if args.make_cam_pass is True:
         import step.make_cam
-        args.train_list = "voc12/train.txt"
 
         timer = pyutils.Timer('step.make_cam:')
-        step.make_cam.run(args)
+        step.make_cam.run(args, epoch=args.cam_num_epoches)
 
     if args.eval_cam_pass is True:
         import step.eval_cam
 
         timer = pyutils.Timer('step.eval_cam:')
         final_miou = []
-        for i in range(8, 15):
+        class_score_list = []
+        final_score_list = []
+        for i in range(8, 40):
             t = i / 100.0
             args.cam_eval_thres = t
-            miou, precision, recall = step.eval_cam.run(args)
-            final_miou.append(miou)
-        print(args.cam_out_dir)
-        print(final_miou)
-        print(np.max(np.array(final_miou)))
- #####################3
+            final_score, class_score = step.eval_cam.run(args)
+            final_miou.append(final_score["iou"])
+            final_score_list.append(final_score)
+            class_score_list.append(class_score)
+
+        print("mIOU: ", np.max(np.array(final_miou)))
+        best_index = np.argmax(np.array(final_miou))
+        f_best = final_score_list[best_index]
+        c_best = class_score_list[best_index]
+        print_performance(f_best, c_best)
+
     if args.cam_to_ir_label_pass is True:
         import step.cam_to_ir_label
 

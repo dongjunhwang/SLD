@@ -22,7 +22,7 @@ def _work(process_id, infer_dataset, args):
         # if os.path.exists(os.path.join(args.ir_label_out_dir, img_name + '.png')):
         #     continue
         img = pack['img'][0].numpy()
-        cam_dict = np.load(os.path.join(args.cam_out_dir, img_name + '.npy'), allow_pickle=True).item()
+        cam_dict = np.load(os.path.join("train_log", args.cam_out_dir, "scoremap",  img_name + '.npy'), allow_pickle=True).item()
 
         cams = cam_dict['high_res']
         keys = np.pad(cam_dict['keys'] + 1, (1, 0), mode='constant')
