@@ -12,8 +12,8 @@ Codes heavily build on [IRN](https://github.com/jiwoon-ahn/irn) and [W-OoD](http
 
 > **Abstract**: Weakly supervised semantic segmentation (WSSS) effectively reduce the pixel-level annotation cost since they use weak labels such as image-level labels.
 > Although numerous studies have been conducted, they do not attention to the strong correlation between classes.
-> In this paper, we analyze that a strong correlation between classes makes a poor localization map, and handle this issue by using Single Label Dataset (SLD).
-> To train this dataset, we proposed a novel knowledge distillation method. Notably, we design several experiments to show the effectiveness of our method using qualitative and quantitative analysis.
+> In this paper, we analyze that a strong correlation between classes makes a poor localization map. Also, we handle this issue by using Single Label Dataset (SLD).
+> To train this dataset more suitable for the classification model, we proposed a novel knowledge distillation method that makes the two networks complementary. Notably, we design several experiments to show the effectiveness of our method using qualitative and quantitative analysis.
 
 
 # Single Label Dataset
